@@ -369,7 +369,7 @@ fn choice<T: Listable>(vec: &[T]) -> Result<&T> {
     
     let mut i = 1;
     for item in vec {
-        println!("{i:>width1$}: {name:>width2$} {viewers}", i=i, width1=len, name=item.name(), width2=offset, viewers=item.viewers());
+        println!("{i:>width1$}) {name:>width2$} {viewers}", i=i, width1=len, name=item.name(), width2=offset, viewers=item.viewers());
         i += 1;
     }
 
