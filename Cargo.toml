@@ -1,0 +1,9 @@
+[package]
+name = "twitch-cli"
+version = "0.1.0"
+authors = ["cloewtec <consti.loew@live.de>"]
+
+[dependencies]
+hyper = "0.9.12"
+serde_json = "0.8.3"
+clap = "2.19.0"
