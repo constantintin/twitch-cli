@@ -1,0 +1,16 @@
+* Twitch-CLI 
+CLI utility to open twitch streams with livestreamer
+** Installation 
+#+BEGIN_SRC sh n
+git clone https://gitlab.com/Haddock/twitch-cli
+cargo build --release
+#+END_SRC
+** Usage
+*** No params
+Open directory of top 10 Games
+*** Open Stream
+Open stream with --stream or -s
+*** Open Game
+Open select game with --game or -g
+*** Open followed streams
+Open followed, online streams with --followed or -f
