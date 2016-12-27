@@ -73,6 +73,7 @@ enum TwitchError {
     GameParseError(Value),
     LivestreamerFailed,
     ChoiceFailed(i32),
+    NotNumber,
 }
 
 
@@ -100,6 +101,8 @@ impl fmt::Display for TwitchError {
                 write!(f, "Livestreamer has failed to execute. Is it properly installed and in you're path?"),
             TwitchError::ChoiceFailed(ref i) =>
                 write!(f, "{} is not an available choice.", i),
+            TwitchError::NotNumber =>
+                write!(f, "That's not a number"),
         }
     }
 }
@@ -119,6 +122,7 @@ impl error::Error for TwitchError {
             TwitchError::GameParseError(_) => "Failed parsing",
             TwitchError::LivestreamerFailed => "livestreamer failed",
             TwitchError::ChoiceFailed(_) => "Out of bounds",
+            TwitchError::NotNumber => "Not a number",
         }
     }
 
@@ -378,14 +382,14 @@ fn choice<T: Listable>(vec: &[T]) -> Result<&T> {
     try!(stdin
          .lock()
          .read_line(&mut inputstr)
-         .map_err(|_| TwitchError::ChoiceFailed(0)));
+         .map_err(|_| TwitchError::NotNumber));
 
     println!("\n\n");
 
     let input = try!(inputstr
                      .trim()
                      .parse::<i32>()
-                     .map_err(|_| TwitchError::ChoiceFailed(0)));
+                     .map_err(|_| TwitchError::NotNumber));
     if input > vec.len() as i32 {
         return Err(TwitchError::ChoiceFailed(input))
     }
