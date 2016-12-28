@@ -390,7 +390,7 @@ fn choice<T: Listable>(vec: &[T]) -> Result<&T> {
                      .trim()
                      .parse::<i32>()
                      .map_err(|_| TwitchError::NotNumber));
-    if input > vec.len() as i32 {
+    if input > vec.len() as i32 || input < 1 {
         return Err(TwitchError::ChoiceFailed(input))
     }
     return Ok(&vec[(input - 1) as usize])
