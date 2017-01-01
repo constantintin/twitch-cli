@@ -137,7 +137,7 @@ fn main() {
                          (author: "Haddock")
                          (@arg GAME: -g --game +takes_value "Gets streams of game")
                          (@arg STREAM: -s --stream +takes_value "Gets stream if online")
-                         (@arg FOLLOW: -f --follow "gets followed streams")
+                         (@arg FOLLOW: -f --follow "Gets followed streams")
     ).get_matches();
     let handle = match args.value_of("GAME") {
         Some(g) => watch_streams(g),
