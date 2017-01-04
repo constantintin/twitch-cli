@@ -74,6 +74,7 @@ enum TwitchError {
     LivestreamerFailed,
     ChoiceFailed(i32),
     NotNumber,
+    Info,
 }
 
 
@@ -92,7 +93,7 @@ impl fmt::Display for TwitchError {
             TwitchError::BadChannel(ref c) =>
                 write!(f, "The channel {} does not exist", c),
             TwitchError::StreamOffline =>
-                write!(f, "Stream is offline!"),
+                write!(f, "Offline"),
             TwitchError::NoStreams =>
                 write!(f, "No streams available"),
             TwitchError::GameParseError(ref j) =>
@@ -103,6 +104,8 @@ impl fmt::Display for TwitchError {
                 write!(f, "{} is not an available choice.", i),
             TwitchError::NotNumber =>
                 write!(f, "That's not a number"),
+            TwitchError::Info =>
+                write!(f, ""),
         }
     }
 }
@@ -123,6 +126,7 @@ impl error::Error for TwitchError {
             TwitchError::LivestreamerFailed => "livestreamer failed",
             TwitchError::ChoiceFailed(_) => "Out of bounds",
             TwitchError::NotNumber => "Not a number",
+            TwitchError::Info => "Info",
         }
     }
 
@@ -138,16 +142,20 @@ fn main() {
                          (@arg GAME: -g --game +takes_value "Gets streams of game")
                          (@arg STREAM: -s --stream +takes_value "Gets stream if online")
                          (@arg FOLLOW: -f --follow "Gets followed streams")
+                         (@arg INFO: -i --info "Only list info")
     ).get_matches();
+
+    let info = args.is_present("INFO");
+    
     let handle = match args.value_of("GAME") {
-        Some(g) => watch_streams(g),
+        Some(g) => watch_streams(g, info),
         None    => {
             match args.value_of("STREAM") {
-                Some(s) => watch_channel(s),
+                Some(s) => watch_channel(s, info),
                 None => {
                     match args.is_present("FOLLOW") {
-                        true => watch_followed(),
-                        false => watch_games(),
+                        true => watch_followed(info),
+                        false => watch_games(info),
                     }
                 }
             }
@@ -322,37 +330,36 @@ fn open_stream(stream: &Stream) -> Result<std::process::Child> {
 }
 
 
-fn watch_channel(name: &str) -> Result<std::process::Child> {
+fn watch_channel(name: &str, info: bool) -> Result<std::process::Child> {
     let channel = try!(twitch_channel(name));
     let stream = try!(channel.find("stream").ok_or(TwitchError::NoStreams));
     match parse_stream(&stream) {
-        Ok(s) => open_stream(&s),
+        Ok(s) => if info { println!("Online"); return Err(TwitchError::Info)} else { open_stream(&s) },
         Err(e) => Err(e),
     }
 }
 
-fn watch_streams(game: &str) -> Result<std::process::Child> {
+fn watch_streams(game: &str, info: bool) -> Result<std::process::Child> {
     let streams = try!(twitch_streams(game));
-    let sel_stream = try!(choice(&streams));
-
+    let sel_stream = try!(choice(&streams, info));
     open_stream(&sel_stream)
 }
 
-fn watch_games() -> Result<std::process::Child> {
+fn watch_games(info: bool) -> Result<std::process::Child> {
     let games = try!(twitch_games());
-    let sel_game = try!(choice(&games));
+    let sel_game = try!(choice(&games, info));
 
-    watch_streams(&sel_game.name)
+    watch_streams(&sel_game.name, false)
 }
 
-fn watch_followed() -> Result<std::process::Child> {
+fn watch_followed(info: bool) -> Result<std::process::Child> {
     let streams = try!(twitch_followed());
-    let sel_stream = try!(choice(&streams));
+    let sel_stream = try!(choice(&streams, info));
 
     open_stream(&sel_stream)
 }
 
-fn choice<T: Listable>(vec: &[T]) -> Result<&T> {
+fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
     // Edge case where theres only one option
     if vec.len() == 1 {
         return Ok(&vec[0])
@@ -375,6 +382,9 @@ fn choice<T: Listable>(vec: &[T]) -> Result<&T> {
     for item in vec {
         println!("{i:>width1$}) {name:>width2$} {viewers}", i=i, width1=len, name=item.name(), width2=offset, viewers=item.viewers());
         i += 1;
+    }
+    if info {
+        return Err(TwitchError::Info)
     }
 
     let mut inputstr = String::new();
