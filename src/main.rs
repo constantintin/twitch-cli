@@ -360,11 +360,6 @@ fn watch_followed(info: bool) -> Result<std::process::Child> {
 }
 
 fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
-    // Edge case where theres only one option
-    if vec.len() == 1 {
-        return Ok(&vec[0])
-    }
-
     let offset = vec
         .iter()
         .map(|item| item.name().len())
@@ -383,8 +378,14 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
         println!("{i:>width1$}) {name:>width2$} {viewers}", i=i, width1=len, name=item.name(), width2=offset, viewers=item.viewers());
         i += 1;
     }
+
     if info {
         return Err(TwitchError::Info)
+    }
+
+    // Edge case where theres only one option
+    if vec.len() == 1 {
+        return Ok(&vec[0])
     }
 
     let mut inputstr = String::new();
