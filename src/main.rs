@@ -360,6 +360,23 @@ fn watch_followed(info: bool) -> Result<std::process::Child> {
 }
 
 fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
+    let mut inputstr = String::new();
+    let stdin = io::stdin();
+
+    // Edge case where theres only one option
+    if vec.len() == 1 && !info {
+        println!("Want to watch {}? [y/N]", vec[0].name());
+        try!(stdin
+             .lock()
+             .read_line(&mut inputstr)
+             .map_err(|_| TwitchError::NotNumber));
+        match &inputstr.trim() as &str {
+            "y" => return Ok(&vec[0]),
+            "N" => return Err(TwitchError::Info),
+            _   => return Err(TwitchError::Info),
+        }
+    }
+
     let offset = vec
         .iter()
         .map(|item| item.name().len())
@@ -371,7 +388,7 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
         .to_string()
         .len();
 
-    println!("Choose by typing the number next to the option");
+    println!("Choose by typing the number next to the option [1 - {}]", vec.len());
     
     let mut i = 1;
     for item in vec {
@@ -383,13 +400,6 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
         return Err(TwitchError::Info)
     }
 
-    // Edge case where theres only one option
-    if vec.len() == 1 {
-        return Ok(&vec[0])
-    }
-
-    let mut inputstr = String::new();
-    let stdin = io::stdin();
     try!(stdin
          .lock()
          .read_line(&mut inputstr)
