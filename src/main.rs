@@ -72,7 +72,7 @@ enum TwitchError {
     GameParseError(Value),
     LivestreamerFailed,
     ChoiceFailed(i32),
-    NotNumber,
+    NotNumber(std::num::ParseIntError),
     Info,
 }
 
@@ -101,8 +101,8 @@ impl fmt::Display for TwitchError {
                 write!(f, "Livestreamer has failed to execute. Is it properly installed and in you're path?"),
             TwitchError::ChoiceFailed(ref i) =>
                 write!(f, "{} is not an available choice.", i),
-            TwitchError::NotNumber =>
-                write!(f, "That's not a number"),
+            TwitchError::NotNumber(ref e) =>
+                write!(f, "That's not a number. Error:\n{}", e),
             TwitchError::Info =>
                 write!(f, ""),
         }
@@ -124,7 +124,7 @@ impl error::Error for TwitchError {
             TwitchError::GameParseError(_) => "Failed parsing",
             TwitchError::LivestreamerFailed => "livestreamer failed",
             TwitchError::ChoiceFailed(_) => "Out of bounds",
-            TwitchError::NotNumber => "Not a number",
+            TwitchError::NotNumber(_) => "Not a number",
             TwitchError::Info => "Info",
         }
     }
@@ -364,15 +364,18 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
 
     // Edge case where theres only one option
     if vec.len() == 1 && !info {
-        println!("Want to watch {}? [y/N]", vec[0].name());
-        try!(stdin
-             .lock()
-             .read_line(&mut inputstr)
-             .map_err(|_| TwitchError::NotNumber));
-        match &inputstr.trim() as &str {
-            "y" => return Ok(&vec[0]),
-            "N" => return Err(TwitchError::Info),
-            _   => return Err(TwitchError::Info),
+        loop {
+            println!("Want to watch {}? [y/N]", vec[0].name());
+            try!(stdin
+                 .lock()
+                 .read_line(&mut inputstr)
+                 .map_err(|e| TwitchError::ReadBodyFailed(e)));
+            match &inputstr.trim() as &str {
+                "y" => return Ok(&vec[0]),
+                "N" => return Err(TwitchError::Info),
+                _  => { println!("Try again!\n"); },
+            }
+            inputstr = String::new();
         }
     }
 
@@ -401,19 +404,25 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
         return Err(TwitchError::Info)
     }
 
-    try!(stdin
-         .lock()
-         .read_line(&mut inputstr)
-         .map_err(|_| TwitchError::NotNumber));
 
-    println!("\n\n");
+    loop {
+        inputstr = String::new();
+        try!(stdin
+             .lock()
+             .read_line(&mut inputstr)
+             .map_err(|e| TwitchError::ReadBodyFailed(e)));
 
-    let input = try!(inputstr
+
+        let input = try!(inputstr
                      .trim()
                      .parse::<i32>()
-                     .map_err(|_| TwitchError::NotNumber));
-    if input > vec.len() as i32 || input < 1 {
-        return Err(TwitchError::ChoiceFailed(input))
+                     .map_err(|e| TwitchError::NotNumber(e)));
+        if input > vec.len() as i32 || input < 1 {
+            println!("Try again!\n");
+            continue;
+        }
+        else {
+            return Ok(&vec[(input - 1) as usize])
+        }
     }
-    return Ok(&vec[(input - 1) as usize])
 }
