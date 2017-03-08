@@ -3,6 +3,7 @@ CLI utility to open twitch streams with livestreamer
 ** Installation 
 #+BEGIN_SRC sh n
 git clone https://gitlab.com/Haddock/twitch-cli
+cd twitch-cli
 cargo build --release
 #+END_SRC
 ** Usage
