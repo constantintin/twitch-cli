@@ -1,5 +1,4 @@
 extern crate hyper;
-
 extern crate serde_json;
 use serde_json::Value;
 
@@ -388,7 +387,9 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
         .to_string()
         .len();
 
-    println!("Choose by typing the number next to the option [1 - {}]", vec.len());
+    if !info {
+        println!("Choose by typing the number next to the option [1 - {}]", vec.len());
+    }
     
     let mut i = 1;
     for item in vec {
