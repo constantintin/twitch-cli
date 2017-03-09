@@ -71,7 +71,6 @@ enum TwitchError {
     NoStreams,
     GameParseError(Value),
     LivestreamerFailed,
-    ChoiceFailed(i32),
     NotNumber(std::num::ParseIntError),
     Info,
 }
@@ -99,8 +98,6 @@ impl fmt::Display for TwitchError {
                 write!(f, "Error parsing the following json:\n{}", serde_json::ser::to_string_pretty(&j).unwrap()),
             TwitchError::LivestreamerFailed =>
                 write!(f, "Livestreamer has failed to execute. Is it properly installed and in you're path?"),
-            TwitchError::ChoiceFailed(ref i) =>
-                write!(f, "{} is not an available choice.", i),
             TwitchError::NotNumber(ref e) =>
                 write!(f, "That's not a number. Error:\n{}", e),
             TwitchError::Info =>
@@ -123,7 +120,6 @@ impl error::Error for TwitchError {
             TwitchError::NoStreams => "No streams available",
             TwitchError::GameParseError(_) => "Failed parsing",
             TwitchError::LivestreamerFailed => "livestreamer failed",
-            TwitchError::ChoiceFailed(_) => "Out of bounds",
             TwitchError::NotNumber(_) => "Not a number",
             TwitchError::Info => "Info",
         }
@@ -174,7 +170,7 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
     headers.set_raw("Authorization", vec![b"OAuth f96ge3agi90meg6c0y7ju3yak3r2uo".to_vec()]);
     headers.set_raw("Client-ID", vec![b"hqxa87yjzetn6wjgckdqxmmghdt9cqa".to_vec()]);
     let url = "https://api.twitch.tv/kraken/".to_string() + &option + "&limit=" + &limit.to_string();
-
+    
     let mut res = try!(client
         .get(&*url)
         .headers(headers)
