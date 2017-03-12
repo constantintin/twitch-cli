@@ -167,6 +167,7 @@ fn main() {
 fn twitch_request(option: String, limit: i32) -> Result<Value> {
     let client = hyper::Client::new();
     let mut headers = hyper::header::Headers::new();
+    headers.set_raw("Accept", vec![b"application/vnd.twitchtv.v3+json".to_vec()]);
     headers.set_raw("Authorization", vec![b"OAuth f96ge3agi90meg6c0y7ju3yak3r2uo".to_vec()]);
     headers.set_raw("Client-ID", vec![b"hqxa87yjzetn6wjgckdqxmmghdt9cqa".to_vec()]);
     let url = "https://api.twitch.tv/kraken/".to_string() + &option + "&limit=" + &limit.to_string();
