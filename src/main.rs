@@ -81,25 +81,25 @@ impl fmt::Display for TwitchError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             TwitchError::Hyper(ref e) =>
-                write!(f, "Internet error occurred. Are you connected? Error:\n{}", e),
+                write!(f, "Internet error occurred. Are you connected? Error:\n{}\n", e),
             TwitchError::BadRequest { ref url, ref code } => 
-                write!(f, "Request URL failed.\nURL: '{}' Status Code: {}", url, code),
+                write!(f, "Request URL failed.\nURL: '{}' Status Code: {}\n", url, code),
             TwitchError::ReadBodyFailed(ref e) =>
-                write!(f, "Reading the body into a buffer failed\n Error: {}", e),
+                write!(f, "Reading the body into a buffer failed\n Error: {}\n", e),
             TwitchError::NoAuthorizaion =>
-                write!(f, "Looks like no authorization string was supplied or it doesn't have required scope"),
+                write!(f, "Looks like no authorization string was supplied or it doesn't have required scope\n"),
             TwitchError::BadChannel(ref c) =>
-                write!(f, "The channel {} does not exist", c),
+                write!(f, "The channel {} does not exist\n", c),
             TwitchError::StreamOffline =>
-                write!(f, "Offline"),
+                write!(f, "Offline\n"),
             TwitchError::NoStreams =>
-                write!(f, "No streams available"),
+                write!(f, "No streams available\n"),
             TwitchError::GameParseError(ref j) =>
-                write!(f, "Error parsing the following json:\n{}", serde_json::ser::to_string_pretty(&j).unwrap()),
+                write!(f, "Error parsing the following json:\n{}\n", serde_json::ser::to_string_pretty(&j).unwrap()),
             TwitchError::LivestreamerFailed =>
-                write!(f, "Livestreamer has failed to execute. Is it properly installed and in you're path?"),
+                write!(f, "Livestreamer has failed to execute. Is it properly installed and in you're path?\n"),
             TwitchError::NotNumber(ref e) =>
-                write!(f, "That's not a number. Error:\n{}", e),
+                write!(f, "That's not a number. Error:\n{}\n", e),
             TwitchError::Info =>
                 write!(f, ""),
         }
@@ -158,7 +158,7 @@ fn main() {
     }; 
     match handle {
         Ok(_) => (),
-        Err(e) => println!("{}", e),
+        Err(e) => print!("{}", e),
     }
 
     
