@@ -36,6 +36,7 @@ struct Game {
 trait Listable {
     fn name(&self) -> &String;
     fn viewers(&self) -> &u64;
+    fn fields(&self) -> Vec<(String, String)>;
 }
 
 impl Listable for Game {
@@ -46,6 +47,12 @@ impl Listable for Game {
     fn viewers(&self) -> &u64 {
         &self.viewers
     }
+
+    fn fields(&self) -> Vec<(String, String)> {
+        let fields = vec![(self.name.clone(), String::from("Name")),
+                          (self.viewers.to_string(), String::from("Viewers"))];
+        fields
+    }
 }
 
 impl Listable for Stream {
@@ -55,6 +62,13 @@ impl Listable for Stream {
 
     fn viewers(&self) -> &u64 {
         &self.viewers
+    }
+
+    fn fields(&self) -> Vec<(String, String)> {
+        let fields = vec![(self.channel.name.clone(), String::from("Name")),
+                          (self.channel.status.clone(), String::from("Status")),
+                          (self.viewers.to_string(), String::from("Viewers"))];
+        fields
     }
 }
 
@@ -141,7 +155,7 @@ fn main() {
     ).get_matches();
 
     let info = args.is_present("INFO");
-    
+
     let handle = match args.value_of("GAME") {
         Some(g) => watch_streams(g, info),
         None    => {
@@ -155,13 +169,11 @@ fn main() {
                 }
             }
         },
-    }; 
+    };
     match handle {
         Ok(_) => (),
         Err(e) => print!("{}", e),
     }
-
-    
 }
 
 fn twitch_request(option: String, limit: i32) -> Result<Value> {
@@ -376,24 +388,48 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
         }
     }
 
-    let offset = vec
-        .iter()
-        .map(|item| item.name().len())
-        .max()
-        .unwrap();
-    
     let len = vec
         .len()
         .to_string()
         .len();
 
+    let item_fields: Vec<Vec<(String, String)>> = vec
+        .iter()
+        .map(|item| item.fields())
+        .collect();
+    let mut offsets = Vec::new();
+
+    for i in 0..item_fields.iter().next().unwrap().len() {
+        offsets.push(item_fields
+                     .iter()
+                     .map(|fields| fields[i].0.len())
+                     .max()
+                     .unwrap());
+    }
+
+
     if !info {
         println!("Choose by typing the number next to the option [1 - {}]", vec.len());
     }
-    
+
+    //name_offsets.insert(0, len + 2);
+
+    for _ in 0..len + 2 {
+        print!(" ");
+    }
+    for field in item_fields.iter().next().unwrap().iter().zip(offsets.iter()) {
+        print!("{field:<offset$}", field = (field.0).1, offset = field.1 + 3);
+    }
+    println!("");
+
     let mut i = 1;
-    for item in vec {
-        println!("{i:>width1$}) {name:>width2$} {viewers}", i=i, width1=len, name=item.name(), width2=offset, viewers=item.viewers());
+    for fields in item_fields.iter() {
+        print!("{i:>width$}) ", i = i, width = len);
+        for field in fields.iter().zip(offsets.iter()){
+            print!("{field:>offset$}   ", field = (field.0).0, offset = field.1);
+        }
+        println!("");
+
         i += 1;
     }
 
