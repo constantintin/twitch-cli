@@ -67,6 +67,7 @@ impl Listable for Stream {
     fn fields(&self) -> Vec<(String, String)> {
         let fields = vec![(self.channel.name.clone(), String::from("Name")),
                           (self.channel.status.clone(), String::from("Status")),
+                          (self.game.clone(), String::from("Game")),
                           (self.viewers.to_string(), String::from("Viewers"))];
         fields
     }
@@ -102,8 +103,7 @@ impl fmt::Display for TwitchError {
                 write!(f, "Reading the body into a buffer failed\n Error: {}\n", e),
             TwitchError::NoAuthorizaion =>
                 write!(f, "Looks like no authorization string was supplied or it doesn't have required scope\n"),
-            TwitchError::BadChannel(ref c) =>
-                write!(f, "The channel {} does not exist\n", c),
+            TwitchError::BadChannel(ref c) => write!(f, "The channel {} does not exist\n", c),
             TwitchError::StreamOffline =>
                 write!(f, "Offline\n"),
             TwitchError::NoStreams =>
@@ -397,6 +397,7 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
         .iter()
         .map(|item| item.fields())
         .collect();
+
     let mut offsets = Vec::new();
 
     for i in 0..item_fields.iter().next().unwrap().len() {
@@ -411,8 +412,6 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
     if !info {
         println!("Choose by typing the number next to the option [1 - {}]", vec.len());
     }
-
-    //name_offsets.insert(0, len + 2);
 
     for _ in 0..len + 2 {
         print!(" ");
