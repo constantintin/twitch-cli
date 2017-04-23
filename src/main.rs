@@ -426,7 +426,7 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
     for fields in item_fields.iter() {
         print!("{i:>width$}) ", i = i, width = len);
         for field in fields.iter().zip(offsets.iter()){
-            print!("{field:>offset$}   ", field = (field.0).0, offset = field.1);
+            print!("{field:<offset$}   ", field = (field.0).0, offset = field.1);
         }
         println!("");
 
