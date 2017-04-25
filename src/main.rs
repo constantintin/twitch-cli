@@ -233,10 +233,14 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
 
 fn twitch_streams(game: &str) -> Result<Vec<Stream>> {
     let requ: Value = try!(twitch_request("streams?game=".to_string() + game, 10));
+    if requ.find("streams").expect("no streams in json").is_null() {
+        return Err(TwitchError::NoStreams);
+    }
+
     let streams_v = requ.find("streams")
         .expect("stream request parse error")
         .as_array()
-        .expect("stream request parse error");
+        .expect("stream request parse error array");
     if streams_v.len() == 0 {
         return Err(TwitchError::NoStreams)
     }
@@ -248,10 +252,14 @@ fn twitch_streams(game: &str) -> Result<Vec<Stream>> {
 }
 fn twitch_games() -> Result<Vec<Game>> {
     let requ: Value = try!(twitch_request("games/top?".to_string(), 10));
+    if requ.find("streams").expect("no streams in json").is_null() {
+        return Err(TwitchError::NoStreams);
+    }
+
     let games_v = requ.find("top")
         .expect("game request parse error")
         .as_array()
-        .expect("game request parse error");
+        .expect("game request parse error array");
     if games_v.len() == 0 {
         return Err(TwitchError::NoStreams)
     }
@@ -263,10 +271,14 @@ fn twitch_games() -> Result<Vec<Game>> {
 }
 fn twitch_followed() -> Result<Vec<Stream>> {
     let requ: Value = try!(twitch_request("streams/followed".to_string() + "?", 10));
+    if requ.find("streams").expect("no streams in json").is_null() {
+        return Err(TwitchError::NoStreams);
+    }
+
     let streams_v = requ.find("streams")
         .expect("follow request parse error")
         .as_array()
-        .expect("follow request parse error");
+        .expect("follow request parse error array");
     if streams_v.len() == 0 {
         return Err(TwitchError::NoStreams)
     }
