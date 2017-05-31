@@ -183,12 +183,12 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
     headers.set_raw("Authorization", vec![b"OAuth f96ge3agi90meg6c0y7ju3yak3r2uo".to_vec()]);
     headers.set_raw("Client-ID", vec![b"hqxa87yjzetn6wjgckdqxmmghdt9cqa".to_vec()]);
     let url = "https://api.twitch.tv/kraken/".to_string() + &option + "&limit=" + &limit.to_string();
-    
-    let mut res = try!(client
+
+    let mut res = client
         .get(&*url)
         .headers(headers)
         .send()
-        .map_err(|e| TwitchError::Hyper(e)));
+        .map_err(|e| TwitchError::Hyper(e))?;
     let mut body: String = String::new();
     let res_return = res.read_to_string(&mut body);
 
@@ -200,8 +200,8 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
     }
 
     if res.status.is_client_error() {
-        let error_json: Value = try!(serde_json::de::from_str(&body)
-                                     .map_err(|_| TwitchError::BadRequest { url: url.clone(), code: res.status } ));
+        let error_json: Value = serde_json::de::from_str(&body)
+            .map_err(|_| TwitchError::BadRequest { url: url.clone(), code: res.status } )?;
         match res.status {
             hyper::status::StatusCode::Unauthorized =>
                 return Err(TwitchError::NoAuthorizaion),
@@ -210,10 +210,10 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
                 if o_message.is_none() {
                     return Err(TwitchError::BadRequest { url: url, code: res.status })
                 }
-                let message = try!(error_json
+                let message = error_json
                                    .find("message")
                                    .and_then(|value| value.as_str())
-                                   .ok_or(TwitchError::BadRequest { url: url.clone(), code: res.status } ) );
+                                   .ok_or(TwitchError::BadRequest { url: url.clone(), code: res.status })?;
                 if message.contains("Channel") {
                     let mut iter = message.split_whitespace();
                     iter.next();
@@ -232,7 +232,7 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
 }
 
 fn twitch_streams(game: &str) -> Result<Vec<Stream>> {
-    let requ: Value = try!(twitch_request("streams?game=".to_string() + game, 10));
+    let requ: Value = twitch_request("streams?game=".to_string() + game, 10)?;
     if requ.find("streams").expect("no streams in json").is_null() {
         return Err(TwitchError::NoStreams);
     }
@@ -251,7 +251,7 @@ fn twitch_streams(game: &str) -> Result<Vec<Stream>> {
     Ok(streams)
 }
 fn twitch_games() -> Result<Vec<Game>> {
-    let requ: Value = try!(twitch_request("games/top?".to_string(), 10));
+    let requ: Value = twitch_request("games/top?".to_string(), 10)?;
     if requ.find("streams").expect("no streams in json").is_null() {
         return Err(TwitchError::NoStreams);
     }
@@ -270,7 +270,7 @@ fn twitch_games() -> Result<Vec<Game>> {
     Ok(games)
 }
 fn twitch_followed() -> Result<Vec<Stream>> {
-    let requ: Value = try!(twitch_request("streams/followed".to_string() + "?", 10));
+    let requ: Value = twitch_request("streams/followed".to_string() + "?", 10)?;
     if requ.find("streams").expect("no streams in json").is_null() {
         return Err(TwitchError::NoStreams);
     }
@@ -293,7 +293,7 @@ fn twitch_channel(channel: &str) -> Result<Value> {
 }
 
 fn parse_stream(json: &Value) -> Result<Stream> {
-    let channel_v = try!(json.find("channel").ok_or(TwitchError::StreamOffline));
+    let channel_v = json.find("channel").ok_or(TwitchError::StreamOffline)?;
 
     let name = channel_v.find("name")
         .and_then(|v| v.as_str())
@@ -326,13 +326,13 @@ fn parse_stream(json: &Value) -> Result<Stream> {
 }
 
 fn parse_game(json: &Value) -> Result<Game> {
-    let viewers = try!(json.find("viewers")
+    let viewers = json.find("viewers")
                        .and_then(|v| v.as_u64())
-                       .ok_or(TwitchError::GameParseError(json.clone())));
-    let name = try!( json.find_path(&["game", "name"])
-                     .and_then(|v| v.as_str())
-                     .ok_or(TwitchError::GameParseError(json.clone()))
-    ).to_string();
+                       .ok_or(TwitchError::GameParseError(json.clone()))?;
+    let name = json.find_path(&["game", "name"])
+        .and_then(|v| v.as_str())
+        .ok_or(TwitchError::GameParseError(json.clone()))
+        ?.to_string();
 
     Ok( Game { name: name, viewers: viewers })
 }
@@ -351,8 +351,8 @@ fn open_stream(stream: &Stream) -> Result<std::process::Child> {
 
 
 fn watch_channel(name: &str, info: bool) -> Result<std::process::Child> {
-    let channel = try!(twitch_channel(name));
-    let stream = try!(channel.find("stream").ok_or(TwitchError::NoStreams));
+    let channel = twitch_channel(name)?;
+    let stream = channel.find("stream").ok_or(TwitchError::NoStreams)?;
     match parse_stream(&stream) {
         Ok(s) => if info { println!("Online"); return Err(TwitchError::Info)} else { open_stream(&s) },
         Err(e) => Err(e),
@@ -360,21 +360,21 @@ fn watch_channel(name: &str, info: bool) -> Result<std::process::Child> {
 }
 
 fn watch_streams(game: &str, info: bool) -> Result<std::process::Child> {
-    let streams = try!(twitch_streams(game));
-    let sel_stream = try!(choice(&streams, info));
+    let streams = twitch_streams(game)?;
+    let sel_stream = choice(&streams, info)?;
     open_stream(&sel_stream)
 }
 
 fn watch_games(info: bool) -> Result<std::process::Child> {
-    let games = try!(twitch_games());
-    let sel_game = try!(choice(&games, info));
+    let games = twitch_games()?;
+    let sel_game = choice(&games, info)?;
 
     watch_streams(&sel_game.name, false)
 }
 
 fn watch_followed(info: bool) -> Result<std::process::Child> {
-    let streams = try!(twitch_followed());
-    let sel_stream = try!(choice(&streams, info));
+    let streams = twitch_followed()?;
+    let sel_stream = choice(&streams, info)?;
 
     open_stream(&sel_stream)
 }
@@ -387,10 +387,10 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
     if vec.len() == 1 && !info {
         loop {
             println!("Want to watch {}? [y/N]", vec[0].name());
-            try!(stdin
-                 .lock()
-                 .read_line(&mut inputstr)
-                 .map_err(|e| TwitchError::ReadBodyFailed(e)));
+            stdin
+                .lock()
+                .read_line(&mut inputstr)
+                .map_err(|e| TwitchError::ReadBodyFailed(e))?;
             match &inputstr.trim() as &str {
                 "y" => return Ok(&vec[0]),
                 "N" => return Err(TwitchError::Info),
@@ -436,7 +436,7 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
     let mut i = 1;
     for fields in item_fields.iter() {
         print!("{i:>width$}) ", i = i, width = len);
-        for field in fields.iter().zip(offsets.iter()){
+        for field in fields.iter().zip(offsets.iter()) {
             print!("{field:<offset$}   ", field = (field.0).0, offset = field.1);
         }
         println!("");
@@ -451,16 +451,16 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
 
     loop {
         inputstr = String::new();
-        try!(stdin
-             .lock()
-             .read_line(&mut inputstr)
-             .map_err(|e| TwitchError::ReadBodyFailed(e)));
+        stdin
+            .lock()
+            .read_line(&mut inputstr)
+            .map_err(|e| TwitchError::ReadBodyFailed(e))?;
 
 
-        let input = try!(inputstr
+        let input = inputstr
                      .trim()
                      .parse::<i32>()
-                     .map_err(|e| TwitchError::NotNumber(e)));
+                     .map_err(|e| TwitchError::NotNumber(e))?;
         if input > vec.len() as i32 || input < 1 {
             println!("Try again!\n");
             continue;
