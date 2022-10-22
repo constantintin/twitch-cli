@@ -1,9 +1,11 @@
 [package]
 name = "twitch-cli"
-version = "0.1.0"
-authors = ["cloewtec <consti.loew@live.de>"]
+version = "0.2.0"
+authors = ["Consti <consti.loew@live.de>"]
+edition = "2021"
 
 [dependencies]
-hyper = "0.9.12"
-serde_json = "0.8.3"
+anyhow = "1.0.66"
+reqwest = "0.11.12"
+serde_json = "1.0.87"
 clap = "2.19.0"

@@ -1,15 +1,11 @@
-extern crate hyper;
-extern crate serde_json;
+use anyhow::{anyhow, bail, ensure, Context, Result};
+
 use serde_json::Value;
 
-#[macro_use]
-extern crate clap;
+use clap::clap_app;
 
-use std::io::{self, BufRead};
 use std::io::Read;
-
-use std::fmt;
-
+use std::io::{self, BufRead};
 use std::process::{Command, Stdio};
 
 #[derive(Debug)]
@@ -77,78 +73,6 @@ impl Listable for Stream {
     }
 }
 
-type Result<T> = std::result::Result<T, TwitchError>;
-
-#[derive(Debug)]
-enum TwitchError {
-    Hyper(hyper::error::Error),
-    BadRequest {
-        url: String,
-        code: hyper::status::StatusCode,
-    },
-    ReadBodyFailed(std::io::Error),
-    NoAuthorizaion,
-    BadChannel(String),
-    StreamOffline,
-    NoStreams,
-    GameParseError(Value),
-    LivestreamerFailed,
-    NotNumber(std::num::ParseIntError),
-    Info,
-}
-
-impl fmt::Display for TwitchError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            TwitchError::Hyper(ref e) =>
-                write!(f, "Internet error occurred. Are you connected? Error:\n{}\n", e),
-            TwitchError::BadRequest { ref url, ref code } => 
-                write!(f, "Request URL failed.\nURL: '{}' Status Code: {}\n", url, code),
-            TwitchError::ReadBodyFailed(ref e) =>
-                write!(f, "Reading the body into a buffer failed\n Error: {}\n", e),
-            TwitchError::NoAuthorizaion =>
-                write!(f, "Looks like no authorization string was supplied or it doesn't have required scope\n"),
-            TwitchError::BadChannel(ref c) => write!(f, "The channel {} does not exist\n", c),
-            TwitchError::StreamOffline =>
-                write!(f, "Offline\n"),
-            TwitchError::NoStreams =>
-                write!(f, "No streams available\n"),
-            TwitchError::GameParseError(ref j) =>
-                write!(f, "Error parsing the following json:\n{}\n", serde_json::ser::to_string_pretty(&j).unwrap()),
-            TwitchError::LivestreamerFailed =>
-                write!(f, "Livestreamer has failed to execute. Is it properly installed and in you're path?\n"),
-            TwitchError::NotNumber(ref e) =>
-                write!(f, "That's not a number. Error:\n{}\n", e),
-            TwitchError::Info =>
-                write!(f, ""),
-        }
-    }
-}
-
-use std::error;
-
-impl error::Error for TwitchError {
-    fn description(&self) -> &str {
-        match *self {
-            TwitchError::Hyper(_) => "Internet Error",
-            TwitchError::BadRequest { url: _, code: _ } => "Don't really know what went wrong...",
-            TwitchError::ReadBodyFailed(ref e) => e.description(),
-            TwitchError::NoAuthorizaion => "No Authorization",
-            TwitchError::BadChannel(_) => "Channel doesn't exist",
-            TwitchError::StreamOffline => "This stream is offline!",
-            TwitchError::NoStreams => "No streams available",
-            TwitchError::GameParseError(_) => "Failed parsing",
-            TwitchError::LivestreamerFailed => "livestreamer failed",
-            TwitchError::NotNumber(_) => "Not a number",
-            TwitchError::Info => "Info",
-        }
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
-        None
-    }
-}
-
 fn main() {
     let args = clap_app!(Twitch_cli =>
                          (version: "0.1")
@@ -157,7 +81,8 @@ fn main() {
                          (@arg STREAM: -s --stream +takes_value "Gets stream if online")
                          (@arg FOLLOW: -f --follow "Gets followed streams")
                          (@arg INFO: -i --info "Only list info")
-    ).get_matches();
+    )
+    .get_matches();
 
     let info = args.is_present("INFO");
 
@@ -196,54 +121,35 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
         .get(&*url)
         .headers(headers)
         .send()
-        .map_err(|e| TwitchError::Hyper(e))?;
+        .context("Could not connect to twitch api")?;
     let mut body: String = String::new();
-    let res_return = res.read_to_string(&mut body);
-
-    match res_return {
-        Err(e) => return Err(TwitchError::ReadBodyFailed(e)),
-        _ => (),
-    }
+    let res_return = res
+        .read_to_string(&mut body)
+        .context("Reading response body into buffer failed")?;
 
     if res.status.is_client_error() {
-        let error_json: Value =
-            serde_json::de::from_str(&body).map_err(|_| TwitchError::BadRequest {
-                url: url.clone(),
-                code: res.status,
-            })?;
+        let error_json: Value = serde_json::de::from_str(&body)
+            .context(format!("Bad request. Url: {}, Status: {}", url, res.status))?;
         match res.status {
-            hyper::status::StatusCode::Unauthorized => return Err(TwitchError::NoAuthorizaion),
+            hyper::status::StatusCode::Unauthorized => bail!("Looks like no authorization string was supplied or it doesn't have required scope."),
             hyper::status::StatusCode::NotFound => {
                 let o_message = error_json.find("message");
-                if o_message.is_none() {
-                    return Err(TwitchError::BadRequest {
-                        url: url,
-                        code: res.status,
-                    });
-                }
+                ensure!(!o_message.is_none(), "Bad request. Url: {}, Status: {}", url, res.status);
+
                 let message = error_json
                     .find("message")
                     .and_then(|value| value.as_str())
-                    .ok_or(TwitchError::BadRequest {
-                        url: url.clone(),
-                        code: res.status,
-                    })?;
+                    .ok_or(anyhow!("Bad request. Url: {}, Status: {}", url, res.status))?;
                 if message.contains("Channel") {
                     let mut iter = message.split_whitespace();
                     iter.next();
-                    return Err(TwitchError::BadChannel(iter.next().unwrap().to_string()));
+                    bail!("The channel {} does not exist.", iter.next().unwrap().to_string());
                 } else {
-                    return Err(TwitchError::BadRequest {
-                        url: url,
-                        code: res.status,
-                    });
+                    bail!("Bad request. Url: {}, Status: {}", url, res.status);
                 }
             }
             _ => {
-                return Err(TwitchError::BadRequest {
-                    url: url,
-                    code: res.status,
-                })
+                bail!("Bad request. Url: {}, Status: {}", url, res.status);
             }
         }
     }
@@ -253,17 +159,17 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
 
 fn twitch_streams(game: &str) -> Result<Vec<Stream>> {
     let requ: Value = twitch_request("streams?game=".to_string() + game, 10)?;
-    if requ.find("streams").expect("no streams in json").is_null() {
-        return Err(TwitchError::NoStreams);
-    }
+    ensure!(
+        !requ.find("streams").expect("no streams in json").is_null(),
+        "No streams available."
+    );
 
-    let streams_v = requ.find("streams")
+    let streams_v = requ
+        .find("streams")
         .expect("stream request parse error")
         .as_array()
         .expect("stream request parse error array");
-    if streams_v.len() == 0 {
-        return Err(TwitchError::NoStreams);
-    }
+    ensure!(streams_v.len() > 0, "No streams available");
     let streams = streams_v
         .iter()
         .map(|s| parse_stream(s).unwrap())
@@ -272,17 +178,17 @@ fn twitch_streams(game: &str) -> Result<Vec<Stream>> {
 }
 fn twitch_games() -> Result<Vec<Game>> {
     let requ: Value = twitch_request("games/top?".to_string(), 10)?;
-    if requ.find("streams").expect("no streams in json").is_null() {
-        return Err(TwitchError::NoStreams);
-    }
+    ensure!(
+        !requ.find("streams").expect("no streams in json").is_null(),
+        "No streams available."
+    );
 
-    let games_v = requ.find("top")
+    let games_v = requ
+        .find("top")
         .expect("game request parse error")
         .as_array()
         .expect("game request parse error array");
-    if games_v.len() == 0 {
-        return Err(TwitchError::NoStreams);
-    }
+    ensure!(games_v.len() > 0, "No games available");
     let games = games_v
         .iter()
         .map(|g| parse_game(g).unwrap())
@@ -291,17 +197,17 @@ fn twitch_games() -> Result<Vec<Game>> {
 }
 fn twitch_followed() -> Result<Vec<Stream>> {
     let requ: Value = twitch_request("streams/followed".to_string() + "?", 10)?;
-    if requ.find("streams").expect("no streams in json").is_null() {
-        return Err(TwitchError::NoStreams);
-    }
+    ensure!(
+        !requ.find("streams").expect("no streams in json").is_null(),
+        "No streams available."
+    );
 
-    let streams_v = requ.find("streams")
+    let streams_v = requ
+        .find("streams")
         .expect("follow request parse error")
         .as_array()
         .expect("follow request parse error array");
-    if streams_v.len() == 0 {
-        return Err(TwitchError::NoStreams);
-    }
+    ensure!(streams_v.len() > 0, "No streams available");
     let streams = streams_v
         .iter()
         .map(|s| parse_stream(s).expect("no streams"))
@@ -313,7 +219,7 @@ fn twitch_channel(channel: &str) -> Result<Value> {
 }
 
 fn parse_stream(json: &Value) -> Result<Stream> {
-    let channel_v = json.find("channel").ok_or(TwitchError::StreamOffline)?;
+    let channel_v = json.find("channel").ok_or(anyhow!("Offline."))?;
 
     let name = channel_v
         .find("name")
@@ -336,7 +242,8 @@ fn parse_stream(json: &Value) -> Result<Stream> {
         .unwrap()
         .to_string();
 
-    let game = json.find("game")
+    let game = json
+        .find("game")
         .and_then(|v| v.as_str())
         .unwrap()
         .to_string();
@@ -356,12 +263,20 @@ fn parse_stream(json: &Value) -> Result<Stream> {
 }
 
 fn parse_game(json: &Value) -> Result<Game> {
-    let viewers = json.find("viewers")
+    let viewers = json
+        .find("viewers")
         .and_then(|v| v.as_u64())
-        .ok_or(TwitchError::GameParseError(json.clone()))?;
-    let name = json.find_path(&["game", "name"])
+        .ok_or(anyhow!(
+            "Error parsing json:\n {}.",
+            serde_json::ser::to_string_pretty(&json.clone()).unwrap()
+        ))?;
+    let name = json
+        .find_path(&["game", "name"])
         .and_then(|v| v.as_str())
-        .ok_or(TwitchError::GameParseError(json.clone()))?
+        .ok_or(anyhow!(
+            "Error parsing json:\n {}.",
+            serde_json::ser::to_string_pretty(&json.clone()).unwrap()
+        ))?
         .to_string();
 
     Ok(Game {
@@ -380,19 +295,23 @@ fn open_stream(stream: &Stream) -> Result<std::process::Child> {
         ])
         .stdout(Stdio::null())
         .spawn()
-        .map_err(|_| TwitchError::LivestreamerFailed)
+        .context("Livestreamer has failed to execute. Is it properly installed and in you're path?")
 }
 
 fn watch_channel(name: &str, info: bool) -> Result<std::process::Child> {
     let channel = twitch_channel(name)?;
-    let stream = channel.find("stream").ok_or(TwitchError::NoStreams)?;
+    let stream = channel
+        .find("stream")
+        .ok_or(anyhow!("No streams available."))?;
     match parse_stream(&stream) {
-        Ok(s) => if info {
-            println!("Online");
-            return Err(TwitchError::Info);
-        } else {
-            open_stream(&s)
-        },
+        Ok(s) => {
+            if info {
+                println!("Online");
+                return Err(anyhow!(""));
+            } else {
+                open_stream(&s)
+            }
+        }
         Err(e) => Err(e),
     }
 }
@@ -428,10 +347,10 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
             stdin
                 .lock()
                 .read_line(&mut inputstr)
-                .map_err(|e| TwitchError::ReadBodyFailed(e))?;
+                .context("Reading body into buffer failed.")?;
             match &inputstr.trim() as &str {
                 "y" => return Ok(&vec[0]),
-                "N" => return Err(TwitchError::Info),
+                "N" => return Err(anyhow!("")),
                 _ => {
                     println!("Try again!\n");
                 }
@@ -493,7 +412,7 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
     }
 
     if info {
-        return Err(TwitchError::Info);
+        bail!("");
     }
 
     loop {
@@ -501,12 +420,9 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
         stdin
             .lock()
             .read_line(&mut inputstr)
-            .map_err(|e| TwitchError::ReadBodyFailed(e))?;
+            .context("Reading body into buffer failed.")?;
 
-        let input = inputstr
-            .trim()
-            .parse::<i32>()
-            .map_err(|e| TwitchError::NotNumber(e))?;
+        let input = inputstr.trim().parse::<i32>().context("Not a number")?;
         if input > vec.len() as i32 || input < 1 {
             println!("Try again!\n");
             continue;
