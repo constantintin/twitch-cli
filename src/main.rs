@@ -103,53 +103,45 @@ fn main() {
 }
 
 fn twitch_request(option: String, limit: i32) -> Result<Value> {
-    let client = hyper::Client::new();
-    let mut headers = hyper::header::Headers::new();
-    headers.set_raw("Accept", vec![b"application/vnd.twitchtv.v3+json".to_vec()]);
-    headers.set_raw(
-        "Authorization",
-        vec![b"OAuth f96ge3agi90meg6c0y7ju3yak3r2uo".to_vec()],
-    );
-    headers.set_raw(
-        "Client-ID",
-        vec![b"hqxa87yjzetn6wjgckdqxmmghdt9cqa".to_vec()],
-    );
+    let client = reqwest::blocking::Client::new();
     let url =
         "https://api.twitch.tv/kraken/".to_string() + &option + "&limit=" + &limit.to_string();
-
     let mut res = client
         .get(&*url)
-        .headers(headers)
+        .header("Accept", "application/vnd.twitchtv.v3+json")
+        .header("Authorization", "OAuth f96ge3agi90meg6c0y7ju3yak3r2uo")
+        .header("Client-ID", "hqxa87yjzetn6wjgckdqxmmghdt9cqa")
         .send()
         .context("Could not connect to twitch api")?;
+
     let mut body: String = String::new();
     let res_return = res
         .read_to_string(&mut body)
         .context("Reading response body into buffer failed")?;
 
-    if res.status.is_client_error() {
+    if res.status().is_client_error() {
         let error_json: Value = serde_json::de::from_str(&body)
-            .context(format!("Bad request. Url: {}, Status: {}", url, res.status))?;
-        match res.status {
-            hyper::status::StatusCode::Unauthorized => bail!("Looks like no authorization string was supplied or it doesn't have required scope."),
-            hyper::status::StatusCode::NotFound => {
+            .context(format!("Bad request. Url: {}, Status: {}", url, res.status()))?;
+        match res.status() {
+            reqwest::StatusCode::UNAUTHORIZED => bail!("Looks like no authorization string was supplied or it doesn't have required scope."),
+            reqwest::StatusCode::NOT_FOUND => {
                 let o_message = error_json.get("message");
-                ensure!(!o_message.is_none(), "Bad request. Url: {}, Status: {}", url, res.status);
+                ensure!(!o_message.is_none(), "Bad request. Url: {}, Status: {}", url, res.status());
 
                 let message = error_json
                     .get("message")
                     .and_then(|value| value.as_str())
-                    .ok_or(anyhow!("Bad request. Url: {}, Status: {}", url, res.status))?;
+                    .ok_or(anyhow!("Bad request. Url: {}, Status: {}", url, res.status()))?;
                 if message.contains("Channel") {
                     let mut iter = message.split_whitespace();
                     iter.next();
                     bail!("The channel {} does not exist.", iter.next().unwrap().to_string());
                 } else {
-                    bail!("Bad request. Url: {}, Status: {}", url, res.status);
+                    bail!("Bad request. Url: {}, Status: {}", url, res.status());
                 }
             }
             _ => {
-                bail!("Bad request. Url: {}, Status: {}", url, res.status);
+                bail!("Bad request. Url: {}, Status: {}", url, res.status());
             }
         }
     }
@@ -267,7 +259,7 @@ fn parse_game(json: &Value) -> Result<Game> {
         "Error parsing json:\n {}.",
         serde_json::ser::to_string_pretty(&json.clone()).unwrap()
     ))?;
-    let name = match json["game"]["name"] {
+    let name = match &json["game"]["name"] {
         Value::String(s) => s,
         _ => bail!(
             "Error parsing json:\n {}.",
