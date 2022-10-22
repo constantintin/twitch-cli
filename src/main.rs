@@ -133,11 +133,11 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
         match res.status {
             hyper::status::StatusCode::Unauthorized => bail!("Looks like no authorization string was supplied or it doesn't have required scope."),
             hyper::status::StatusCode::NotFound => {
-                let o_message = error_json.find("message");
+                let o_message = error_json.get("message");
                 ensure!(!o_message.is_none(), "Bad request. Url: {}, Status: {}", url, res.status);
 
                 let message = error_json
-                    .find("message")
+                    .get("message")
                     .and_then(|value| value.as_str())
                     .ok_or(anyhow!("Bad request. Url: {}, Status: {}", url, res.status))?;
                 if message.contains("Channel") {
@@ -160,12 +160,12 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
 fn twitch_streams(game: &str) -> Result<Vec<Stream>> {
     let requ: Value = twitch_request("streams?game=".to_string() + game, 10)?;
     ensure!(
-        !requ.find("streams").expect("no streams in json").is_null(),
+        !requ.get("streams").expect("no streams in json").is_null(),
         "No streams available."
     );
 
     let streams_v = requ
-        .find("streams")
+        .get("streams")
         .expect("stream request parse error")
         .as_array()
         .expect("stream request parse error array");
@@ -179,12 +179,12 @@ fn twitch_streams(game: &str) -> Result<Vec<Stream>> {
 fn twitch_games() -> Result<Vec<Game>> {
     let requ: Value = twitch_request("games/top?".to_string(), 10)?;
     ensure!(
-        !requ.find("streams").expect("no streams in json").is_null(),
+        !requ.get("streams").expect("no streams in json").is_null(),
         "No streams available."
     );
 
     let games_v = requ
-        .find("top")
+        .get("top")
         .expect("game request parse error")
         .as_array()
         .expect("game request parse error array");
@@ -198,12 +198,12 @@ fn twitch_games() -> Result<Vec<Game>> {
 fn twitch_followed() -> Result<Vec<Stream>> {
     let requ: Value = twitch_request("streams/followed".to_string() + "?", 10)?;
     ensure!(
-        !requ.find("streams").expect("no streams in json").is_null(),
+        !requ.get("streams").expect("no streams in json").is_null(),
         "No streams available."
     );
 
     let streams_v = requ
-        .find("streams")
+        .get("streams")
         .expect("follow request parse error")
         .as_array()
         .expect("follow request parse error array");
@@ -219,35 +219,35 @@ fn twitch_channel(channel: &str) -> Result<Value> {
 }
 
 fn parse_stream(json: &Value) -> Result<Stream> {
-    let channel_v = json.find("channel").ok_or(anyhow!("Offline."))?;
+    let channel_v = json.get("channel").ok_or(anyhow!("Offline."))?;
 
     let name = channel_v
-        .find("name")
+        .get("name")
         .and_then(|v| v.as_str())
         .unwrap()
         .to_string();
     let display_name = channel_v
-        .find("display_name")
+        .get("display_name")
         .and_then(|v| v.as_str())
         .unwrap()
         .to_string();
     let broadcaster_language = channel_v
-        .find("broadcaster_language")
+        .get("broadcaster_language")
         .and_then(|v| v.as_str())
         .unwrap()
         .to_string();
     let status = channel_v
-        .find("status")
+        .get("status")
         .and_then(|v| v.as_str())
         .unwrap()
         .to_string();
 
     let game = json
-        .find("game")
+        .get("game")
         .and_then(|v| v.as_str())
         .unwrap()
         .to_string();
-    let viewers = json.find("viewers").and_then(|v| v.as_u64()).unwrap();
+    let viewers = json.get("viewers").and_then(|v| v.as_u64()).unwrap();
 
     let channel = Channel {
         name: name,
@@ -263,24 +263,20 @@ fn parse_stream(json: &Value) -> Result<Stream> {
 }
 
 fn parse_game(json: &Value) -> Result<Game> {
-    let viewers = json
-        .find("viewers")
-        .and_then(|v| v.as_u64())
-        .ok_or(anyhow!(
+    let viewers = json.get("viewers").and_then(|v| v.as_u64()).ok_or(anyhow!(
+        "Error parsing json:\n {}.",
+        serde_json::ser::to_string_pretty(&json.clone()).unwrap()
+    ))?;
+    let name = match json["game"]["name"] {
+        Value::String(s) => s,
+        _ => bail!(
             "Error parsing json:\n {}.",
             serde_json::ser::to_string_pretty(&json.clone()).unwrap()
-        ))?;
-    let name = json
-        .find_path(&["game", "name"])
-        .and_then(|v| v.as_str())
-        .ok_or(anyhow!(
-            "Error parsing json:\n {}.",
-            serde_json::ser::to_string_pretty(&json.clone()).unwrap()
-        ))?
-        .to_string();
+        ),
+    };
 
     Ok(Game {
-        name: name,
+        name: name.to_string(),
         viewers: viewers,
     })
 }
@@ -301,7 +297,7 @@ fn open_stream(stream: &Stream) -> Result<std::process::Child> {
 fn watch_channel(name: &str, info: bool) -> Result<std::process::Child> {
     let channel = twitch_channel(name)?;
     let stream = channel
-        .find("stream")
+        .get("stream")
         .ok_or(anyhow!("No streams available."))?;
     match parse_stream(&stream) {
         Ok(s) => {
