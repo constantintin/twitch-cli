@@ -85,10 +85,7 @@ fn main() {
     let info = args.is_present("INFO");
 
     let handle = match args.value_of("GAME") {
-        Some(_g) => {
-            println!("Not implemented, going to all games");
-            watch_games(info)
-        } //watch_streams(g, info),
+        Some(g) => watch_streams_by_game(g, info),
         None => match args.value_of("STREAM") {
             Some(s) => watch_channel(s),
             None => match args.is_present("FOLLOW") {
@@ -103,9 +100,9 @@ fn main() {
     }
 }
 
-fn twitch_request(option: String, limit: i32) -> Result<Value> {
+fn twitch_request(option: String) -> Result<Value> {
     let client = reqwest::blocking::Client::new();
-    let url = "https://api.twitch.tv/helix/".to_string() + &option + "&limit=" + &limit.to_string();
+    let url = "https://api.twitch.tv/helix/".to_string() + &option;
 
     let access_token =
         env::var("TWITCH_ACCESS").context("Could not get access token, is TWITCH_ACCESS set?")?;
@@ -139,7 +136,7 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
 }
 
 fn twitch_streams(game: &Game) -> Result<Vec<Stream>> {
-    let requ: Value = twitch_request("streams?game_id=".to_string() + &game.id, 10)?;
+    let requ: Value = twitch_request("streams?game_id=".to_string() + &game.id)?;
 
     let data = requ
         .get("data")
@@ -149,14 +146,25 @@ fn twitch_streams(game: &Game) -> Result<Vec<Stream>> {
         serde_json::from_value(data.clone()).context("Failed parsing streams")?;
     Ok(streams)
 }
+
 fn twitch_games() -> Result<Vec<Game>> {
-    let requ: Value = twitch_request("games/top?".to_string(), 10)?;
+    let requ: Value = twitch_request("games/top?".to_string())?;
 
     let data = requ.get("data").context("No data in games/top response")?;
 
     let games: Vec<Game> = serde_json::from_value(data.clone()).context("Failed parsing games")?;
     Ok(games)
 }
+
+fn twitch_game(name: &str) -> Result<Game> {
+    let requ: Value = twitch_request("games?name=".to_string() + name)?;
+
+    let data = requ.get("data").with_context(|| format!("No streams for {}", name))?;
+
+    let games: Vec<Game> = serde_json::from_value(data.clone()).context("Failed parsing streams")?;
+    games.into_iter().next().ok_or(anyhow!("No streams for {}", name))
+}
+
 fn twitch_followed() -> Result<Vec<Stream>> {
     // let requ: Value = twitch_request("streams/followed".to_string() + "?", 10)?;
 
@@ -177,6 +185,11 @@ fn open_stream(stream: &Stream) -> Result<std::process::Child> {
 
 fn watch_channel(name: &str) -> Result<std::process::Child> {
     open_stream(&Stream { channel: name.to_string(), game: "".to_string(), viewers: 0 })
+}
+
+fn watch_streams_by_game(game_name: &str, info: bool) -> Result<std::process::Child> {
+    let game = twitch_game(game_name)?;
+    watch_streams(&game, info)
 }
 
 fn watch_streams(game: &Game, info: bool) -> Result<std::process::Child> {
