@@ -198,10 +198,7 @@ fn open_stream(stream: &Stream) -> Result<std::process::Child> {
     let stream = format!("https://www.twitch.tv/{}", stream.channel);
     println!("{}", stream);
     Command::new(command)
-        .args(&[
-            &stream,
-            "best,720p60",
-        ])
+        .args(&[&stream, "best,720p60"])
         .stdout(Stdio::null())
         .spawn()
         .context("Livestreamer has failed to execute. Is it properly installed and in you're path?")
