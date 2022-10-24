@@ -7,6 +7,7 @@ use clap::clap_app;
 use std::io::Read;
 use std::io::{self, BufRead};
 use std::process::{Command, Stdio};
+use std::env;
 
 #[derive(Debug)]
 struct Channel {
@@ -98,24 +99,29 @@ fn main() {
     };
     match handle {
         Ok(_) => (),
-        Err(e) => print!("{}", e),
+        Err(e) => println!("{}", e),
     }
 }
 
 fn twitch_request(option: String, limit: i32) -> Result<Value> {
     let client = reqwest::blocking::Client::new();
     let url =
-        "https://api.twitch.tv/kraken/".to_string() + &option + "&limit=" + &limit.to_string();
+        "https://api.twitch.tv/helix/".to_string() + &option + "&limit=" + &limit.to_string();
+
+
+    let access_token = env::var("TWITCH_ACCESS").context("Could not get access token, is TWITCH_ACCESS set?")?;
+    let client_id = env::var("TWITCH_CLIENT_ID").context("Could not get client-id, is TWITCH_CLIENT_ID set?")?;
+
     let mut res = client
         .get(&*url)
         .header("Accept", "application/vnd.twitchtv.v3+json")
-        .header("Authorization", "OAuth f96ge3agi90meg6c0y7ju3yak3r2uo")
-        .header("Client-ID", "hqxa87yjzetn6wjgckdqxmmghdt9cqa")
+        .header("Authorization", &format!("Bearer {}", access_token))
+        .header("Client-ID", &client_id)
         .send()
         .context("Could not connect to twitch api")?;
 
     let mut body: String = String::new();
-    let res_return = res
+    let _res_return = res
         .read_to_string(&mut body)
         .context("Reading response body into buffer failed")?;
 
