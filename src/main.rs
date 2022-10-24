@@ -132,29 +132,9 @@ fn twitch_request(option: String, limit: i32) -> Result<Value> {
         .context("Reading response body into buffer failed")?;
 
     if res.status().is_client_error() {
-        let error_json: Value = serde_json::de::from_str(&body).context(format!(
-            "Bad request. Url: {}, Status: {}",
-            url,
-            res.status()
-        ))?;
         match res.status() {
             reqwest::StatusCode::UNAUTHORIZED => bail!("Looks like no authorization string was supplied or it doesn't have required scope."),
-            reqwest::StatusCode::NOT_FOUND => {
-                let o_message = error_json.get("message");
-                ensure!(!o_message.is_none(), "Bad request. Url: {}, Status: {}", url, res.status());
-
-                let message = error_json
-                    .get("message")
-                    .and_then(|value| value.as_str())
-                    .ok_or(anyhow!("Bad request. Url: {}, Status: {}", url, res.status()))?;
-                if message.contains("Channel") {
-                    let mut iter = message.split_whitespace();
-                    iter.next();
-                    bail!("The channel {} does not exist.", iter.next().unwrap().to_string());
-                } else {
-                    bail!("Bad request. Url: {}, Status: {}", url, res.status());
-                }
-            }
+            reqwest::StatusCode::NOT_FOUND => bail!("Url '{}' was not found", url),
             _ => {
                 bail!("Bad request. Url: {}, Status: {}", url, res.status());
             }
