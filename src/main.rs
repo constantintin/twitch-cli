@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, ensure, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -9,14 +9,6 @@ use std::env;
 use std::io::Read;
 use std::io::{self, BufRead};
 use std::process::{Command, Stdio};
-
-#[derive(Debug)]
-struct Channel {
-    name: String,
-    display_name: String,
-    broadcaster_language: String,
-    status: String,
-}
 
 #[derive(Debug, Deserialize)]
 struct Stream {
@@ -91,12 +83,12 @@ fn main() {
     let info = args.is_present("INFO");
 
     let handle = match args.value_of("GAME") {
-        Some(g) => {
+        Some(_g) => {
             println!("Not implemented, going to all games");
             watch_games(info)
         } //watch_streams(g, info),
         None => match args.value_of("STREAM") {
-            Some(s) => watch_channel(s, info),
+            Some(s) => watch_channel(s),
             None => match args.is_present("FOLLOW") {
                 true => watch_followed(info),
                 false => watch_games(info),
@@ -164,12 +156,9 @@ fn twitch_games() -> Result<Vec<Game>> {
     Ok(games)
 }
 fn twitch_followed() -> Result<Vec<Stream>> {
-    let requ: Value = twitch_request("streams/followed".to_string() + "?", 10)?;
+    // let requ: Value = twitch_request("streams/followed".to_string() + "?", 10)?;
 
     bail!("Not implemented");
-}
-fn twitch_channel(channel: &str) -> Result<Value> {
-    twitch_request("streams/".to_string() + channel + "?", 0)
 }
 
 fn open_stream(stream: &Stream) -> Result<std::process::Child> {
@@ -184,23 +173,8 @@ fn open_stream(stream: &Stream) -> Result<std::process::Child> {
         .context("Livestreamer has failed to execute. Is it properly installed and in you're path?")
 }
 
-fn watch_channel(name: &str, info: bool) -> Result<std::process::Child> {
-    // let channel = twitch_channel(name)?;
-    // let stream = channel
-    //     .get("stream")
-    //     .ok_or(anyhow!("No streams available."))?;
-    // match parse_stream(&stream) {
-    //     Ok(s) => {
-    //         if info {
-    //             println!("Online");
-    //             return Err(anyhow!(""));
-    //         } else {
-    //             open_stream(&s)
-    //         }
-    //     }
-    //     Err(e) => Err(e),
-    // }
-    bail!("Not implemented yet");
+fn watch_channel(name: &str) -> Result<std::process::Child> {
+    open_stream(&Stream { channel: name.to_string(), game: "".to_string(), viewers: 0 })
 }
 
 fn watch_streams(game: &Game, info: bool) -> Result<std::process::Child> {
