@@ -159,16 +159,40 @@ fn twitch_games() -> Result<Vec<Game>> {
 fn twitch_game(name: &str) -> Result<Game> {
     let requ: Value = twitch_request("games?name=".to_string() + name)?;
 
-    let data = requ.get("data").with_context(|| format!("No streams for {}", name))?;
+    let data = requ
+        .get("data")
+        .with_context(|| format!("No streams for {}", name))?;
 
-    let games: Vec<Game> = serde_json::from_value(data.clone()).context("Failed parsing streams")?;
-    games.into_iter().next().ok_or(anyhow!("No streams for {}", name))
+    let games: Vec<Game> =
+        serde_json::from_value(data.clone()).context("Failed parsing streams")?;
+    games
+        .into_iter()
+        .next()
+        .ok_or(anyhow!("No streams for {}", name))
 }
 
 fn twitch_followed() -> Result<Vec<Stream>> {
-    // let requ: Value = twitch_request("streams/followed".to_string() + "?", 10)?;
+    let current_user = twitch_request("users".to_string())?;
+    println!("{:?}", current_user);
+    let user_id = current_user
+        .get("data")
+        .ok_or(anyhow!("Twitch users request didn't have data"))?
+        .get(0)
+        .ok_or(anyhow!("Twitch users request didn't have users"))?
+        .get("id")
+        .ok_or(anyhow!("Twitch user didn't have id"))?
+        .as_str()
+        .ok_or(anyhow!("Twitch user id wasn't a string"))?;
 
-    bail!("Not implemented");
+    let requ: Value = twitch_request(format!("streams/followed?user_id={}", user_id))?;
+
+    let data = requ
+        .get("data")
+        .context(format!("No data in followed streams response"))?;
+
+    let streams: Vec<Stream> =
+        serde_json::from_value(data.clone()).context("Failed parsing streams")?;
+    Ok(streams)
 }
 
 fn open_stream(stream: &Stream) -> Result<std::process::Child> {
@@ -184,7 +208,11 @@ fn open_stream(stream: &Stream) -> Result<std::process::Child> {
 }
 
 fn watch_channel(name: &str) -> Result<std::process::Child> {
-    open_stream(&Stream { channel: name.to_string(), game: "".to_string(), viewers: 0 })
+    open_stream(&Stream {
+        channel: name.to_string(),
+        game: "".to_string(),
+        viewers: 0,
+    })
 }
 
 fn watch_streams_by_game(game_name: &str, info: bool) -> Result<std::process::Child> {
