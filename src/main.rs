@@ -30,7 +30,6 @@ struct Game {
 
 trait Listable {
     fn name(&self) -> String;
-    fn viewers(&self) -> &u64;
     fn fields(&self) -> Vec<(String, String)>;
 }
 
@@ -39,14 +38,9 @@ impl Listable for Game {
         self.name.clone()
     }
 
-    fn viewers(&self) -> &u64 {
-        &0
-    }
-
     fn fields(&self) -> Vec<(String, String)> {
         let fields = vec![
             (self.name(), String::from("Name")),
-            (self.viewers().to_string(), String::from("Viewers")),
         ];
         fields
     }
@@ -57,15 +51,11 @@ impl Listable for Stream {
         self.channel.clone()
     }
 
-    fn viewers(&self) -> &u64 {
-        &self.viewers
-    }
-
     fn fields(&self) -> Vec<(String, String)> {
         let fields = vec![
             (self.name(), String::from("Name")),
             (self.game.clone(), String::from("Game")),
-            (self.viewers().to_string(), String::from("Viewers")),
+            (self.viewers.to_string(), String::from("Viewers")),
         ];
         fields
     }
