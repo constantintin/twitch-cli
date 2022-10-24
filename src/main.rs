@@ -5,6 +5,8 @@ use serde_json::Value;
 
 use clap::clap_app;
 
+use unicode_segmentation::UnicodeSegmentation;
+
 use std::env;
 use std::io::Read;
 use std::io::{self, BufRead};
@@ -230,7 +232,7 @@ fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
         offsets.push(
             item_fields
                 .iter()
-                .map(|fields| fields[i].0.len())
+                .map(|fields| fields[i].0.graphemes(true).count())
                 .max()
                 .unwrap(),
         );

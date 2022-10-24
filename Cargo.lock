@@ -827,6 +827,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -852,9 +853,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-segmentation"
-version = "1.1.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18127285758f0e2c6cf325bb3f3d138a12fee27de4f23e146cd6a179f26c2cf3"
+checksum = "0fdbf052a0783de01e944a6ce7a8cb939e295b1e7be835a1112c3b9a7f047a5a"
 
 [[package]]
 name = "unicode-width"
