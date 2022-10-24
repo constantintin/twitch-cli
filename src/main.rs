@@ -173,7 +173,6 @@ fn twitch_game(name: &str) -> Result<Game> {
 
 fn twitch_followed() -> Result<Vec<Stream>> {
     let current_user = twitch_request("users".to_string())?;
-    println!("{:?}", current_user);
     let user_id = current_user
         .get("data")
         .ok_or(anyhow!("Twitch users request didn't have data"))?
