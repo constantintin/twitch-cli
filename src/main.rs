@@ -1,6 +1,7 @@
+mod types;
+
 use anyhow::{anyhow, bail, Context, Result};
 
-use serde::Deserialize;
 use serde_json::Value;
 
 use clap::clap_app;
@@ -12,54 +13,7 @@ use std::io::Read;
 use std::io::{self, BufRead};
 use std::process::{Command, Stdio};
 
-#[derive(Debug, Deserialize)]
-struct Stream {
-    #[serde(rename = "game_name")]
-    game: String,
-    #[serde(rename = "viewer_count")]
-    viewers: u64,
-    #[serde(rename = "user_name")]
-    channel: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct Game {
-    name: String,
-    id: String,
-}
-
-trait Listable {
-    fn name(&self) -> String;
-    fn fields(&self) -> Vec<(String, String)>;
-}
-
-impl Listable for Game {
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn fields(&self) -> Vec<(String, String)> {
-        let fields = vec![
-            (self.name(), String::from("Name")),
-        ];
-        fields
-    }
-}
-
-impl Listable for Stream {
-    fn name(&self) -> String {
-        self.channel.clone()
-    }
-
-    fn fields(&self) -> Vec<(String, String)> {
-        let fields = vec![
-            (self.name(), String::from("Name")),
-            (self.game.clone(), String::from("Game")),
-            (self.viewers.to_string(), String::from("Viewers")),
-        ];
-        fields
-    }
-}
+use types::{Stream, Game, Listable};
 
 fn main() {
     let args = clap_app!(Twitch_cli =>
