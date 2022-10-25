@@ -44,6 +44,11 @@ fn main() {
     }
 }
 
+/// Make request to twitch api
+/// returns: serde_json::Value of the response or Error
+/// option: gets appended to url
+/// must have TWITCH_ACCESS set to access token
+/// and TWITCH_CLEINT_ID set to client-id for authentication
 fn twitch_request(option: String) -> Result<Value> {
     let client = reqwest::blocking::Client::new();
     let url = "https://api.twitch.tv/helix/".to_string() + &option;
@@ -79,6 +84,8 @@ fn twitch_request(option: String) -> Result<Value> {
     Ok(serde_json::from_str(&body).unwrap())
 }
 
+/// make request to streams with specific game_id
+/// returns streams in Vec
 fn twitch_streams(game: &Game) -> Result<Vec<Stream>> {
     let requ: Value = twitch_request("streams?game_id=".to_string() + &game.id)?;
 
@@ -91,6 +98,8 @@ fn twitch_streams(game: &Game) -> Result<Vec<Stream>> {
     Ok(streams)
 }
 
+/// make request to top games
+/// returns games in Vec
 fn twitch_games() -> Result<Vec<Game>> {
     let requ: Value = twitch_request("games/top?".to_string())?;
 
@@ -100,6 +109,9 @@ fn twitch_games() -> Result<Vec<Game>> {
     Ok(games)
 }
 
+/// make request game of specific name
+/// returns first game returned or Error
+/// used to get the game_id
 fn twitch_game(name: &str) -> Result<Game> {
     let requ: Value = twitch_request("games?name=".to_string() + name)?;
 
@@ -115,6 +127,9 @@ fn twitch_game(name: &str) -> Result<Game> {
         .ok_or(anyhow!("No streams for {}", name))
 }
 
+/// make request to followed streams
+/// gets current user from Bearer token
+/// returns streams in Vec
 fn twitch_followed() -> Result<Vec<Stream>> {
     let current_user = twitch_request("users".to_string())?;
     let user_id = current_user
@@ -138,18 +153,24 @@ fn twitch_followed() -> Result<Vec<Stream>> {
     Ok(streams)
 }
 
+/// spawn instance of streamlink
+/// uses TWITCH_STREAMLINK_COMMAND or defaults to '/usr/local/bin/streamlink'
 fn open_stream(stream: &Stream) -> Result<std::process::Child> {
     println!("Watching {}", stream.channel);
-    let command = "/usr/local/bin/streamlink";
+    let command = match env::var("TWITCH_STREAMLINK_COMMAND") {
+        Ok(streamlink) => streamlink,
+        Err(_) => "/usr/local/bin/streamlink".to_string(),
+    };
     let stream = format!("https://www.twitch.tv/{}", stream.channel);
     println!("{}", stream);
     Command::new(command)
         .args(&[&stream, "best,720p60"])
         .stdout(Stdio::null())
         .spawn()
-        .context("Livestreamer has failed to execute. Is it properly installed and in you're path?")
+        .context("Streamlink has failed to execute. Is it properly installed and in you're path?")
 }
 
+/// watch stream for channel called 'name'
 fn watch_channel(name: &str) -> Result<std::process::Child> {
     open_stream(&Stream {
         channel: name.to_string(),
@@ -158,17 +179,20 @@ fn watch_channel(name: &str) -> Result<std::process::Child> {
     })
 }
 
+/// watch streams of game_name
 fn watch_streams_by_game(game_name: &str, info: bool) -> Result<std::process::Child> {
     let game = twitch_game(game_name)?;
     watch_streams(&game, info)
 }
 
+/// watch streams of game
 fn watch_streams(game: &Game, info: bool) -> Result<std::process::Child> {
     let streams = twitch_streams(game)?;
     let sel_stream = choice(&streams, info)?;
     open_stream(&sel_stream)
 }
 
+/// watch streams of top games
 fn watch_games(info: bool) -> Result<std::process::Child> {
     let games = twitch_games()?;
     let sel_game = choice(&games, info)?;
@@ -176,6 +200,7 @@ fn watch_games(info: bool) -> Result<std::process::Child> {
     watch_streams(&sel_game, false)
 }
 
+/// watch streams of followed channels
 fn watch_followed(info: bool) -> Result<std::process::Child> {
     let streams = twitch_followed()?;
     let sel_stream = choice(&streams, info)?;
@@ -183,6 +208,9 @@ fn watch_followed(info: bool) -> Result<std::process::Child> {
     open_stream(&sel_stream)
 }
 
+/// present cli choice between elements of vec
+/// or if info list all elements of vec
+/// uses Listables fields() method
 fn choice<T: Listable>(vec: &[T], info: bool) -> Result<&T> {
     let mut inputstr = String::new();
     let stdin = io::stdin();
